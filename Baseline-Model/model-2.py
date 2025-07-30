@@ -71,12 +71,12 @@ def load_data(h5_file_path, test_size=0.2):
     return random_split(dataset, [train_size, test_size])
 
 # Data loading with optimizations
-h5_file_path = './Datasets/FD-0.3/spectrograms.h5'
+h5_file_path = './Datasets/FD_0.3.h5'
 train_dataset, test_dataset = load_data(h5_file_path, test_size=0.2)
 
 train_loader = DataLoader(
     train_dataset,
-    batch_size=64,  # Increased batch size
+    batch_size=64,
     shuffle=True,
     num_workers=4,
     pin_memory=True,
