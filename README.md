@@ -1,6 +1,6 @@
 # 🐸 Frog Classifier — Western Cape
 
-![Spectrogram](preprocessing/frog_sounds_wav/09_Natal_Tree_Frog.png)
+![Spectrogram](09_Natal_Tree_Frog.png)
 
 ## Project Overview
 
