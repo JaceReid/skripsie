@@ -1,0 +1,17 @@
+# Ignore massive dataset folder
+./Datasets/
+Datasets/**/*
+
+*.wav
+*.h5
+*.pyc
+*.log
+*.csv
+*.json
+__pycache__/
+venv/
+.env
+.DS_Store
+.idea/
+.vscode/
+*.pth
