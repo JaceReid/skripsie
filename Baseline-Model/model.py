@@ -5,6 +5,7 @@ import torch.optim as optim
 import numpy as np
 import h5py
 from torch.utils.data import Dataset, DataLoader
+from sklearn.preprocessing import LabelEncoder
 
 class SpectrogramDataset(Dataset):
     def __init__(self, h5_file_path, target_height=128, target_width=345, transform=None):
@@ -25,9 +26,9 @@ class SpectrogramDataset(Dataset):
             self.labels = [key.split('_')[0] for key in self.keys]
         
         # Initialize label encoder
-        from sklearn.preprocessing import LabelEncoder
         self.le = LabelEncoder()
         self.le.fit(self.labels)
+        np.save("label_encoder_classes.npy", self.le.classes_)
 
     def __len__(self):
         return len(self.keys)
@@ -78,7 +79,7 @@ def load_data(h5_file_path):
     return SpectrogramDataset(h5_file_path)
 
 # Load data
-h5_file_path = './Datasets/FD-0.3/spectrograms.h5'
+h5_file_path = './Datasets/FD_0.3.h5'
 dataset = load_data(h5_file_path)
 dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 

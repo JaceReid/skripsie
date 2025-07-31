@@ -3,7 +3,7 @@ import csv
 from collections import defaultdict
 from pathlib import Path
 
-def analyze_frog_recordings(directory_path, min_threshold=10000):
+def analyze_frog_recordings(directory_path, min_threshold=100000):
     """
     Analyze frog recordings to find species with few recordings.
     
@@ -23,17 +23,25 @@ def analyze_frog_recordings(directory_path, min_threshold=10000):
     # Count recordings per frog species
     for file in Path(directory_path).iterdir():
         if file.suffix.lower() in audio_extensions:
-            # Extract frog species name (assuming format "common_name_number.ext")
-            parts = file.stem.rsplit('_', 1)  # Split on last underscore
-            if len(parts) == 2 and parts[1].isdigit():
+            # Extract frog species name (handling formats like "common_name_number" or "common_name_number_primary")
+            parts = file.stem.rsplit('_', 2)
+            
+            # Case 1: common_name_number
+            if len(parts) >= 2 and parts[-1].isdigit():
+                frog_species = '_'.join(parts[:-1])
+                frog_counts[frog_species] += 1
+            # Case 2: common_name_number_primary/secondary
+            elif len(parts) == 3 and parts[1].isdigit() and parts[2] in ['primary', 'secondary']:
                 frog_species = parts[0]
                 frog_counts[frog_species] += 1
+
+            # print(frog_species)
     
     # Filter for species with few recordings
     few_recordings = {
         species: count 
         for species, count in frog_counts.items() 
-        if count < min_threshold
+        # if count < min_threshold
     }
     
     return few_recordings
@@ -57,11 +65,18 @@ def print_frog_report(few_recordings, output_csv=None):
     print("-" * 45)
     print(f"Total under-represented species: {len(few_recordings)}")
     
+    # Save to CSV if requested
+    if output_csv:
+        with open(output_csv, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["Species", "Recording Count"])
+            for species, count in sorted(few_recordings.items(), key=lambda item: (item[1], item[0])):
+                writer.writerow([species, count])
 
 
 # Example usage
 if __name__ == "__main__":
-    directory_path = "./preprocessing/frog_sounds_wav/"  # Change this to your directory
+    directory_path = "./Datasets/clipped-4s/"  # Change this to your directory
     output_csv = "frog_recording_report.csv"  # Output CSV filename
-    few_recordings = analyze_frog_recordings(directory_path)
-    print_frog_report(few_recordings, output_csv)
+    few_recordings = analyze_frog_recordings(directory_path, min_threshold=10)
+    print_frog_report(few_recordings)

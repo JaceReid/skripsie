@@ -1,7 +1,7 @@
 import torch
-from torchvision.models import convnext_tiny, ConvNeXt_Tiny_Weights
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 import numpy as np
 import h5py
 from torch.utils.data import Dataset, DataLoader, random_split
@@ -65,46 +65,113 @@ class SpectrogramDataset(Dataset):
                                 mode='constant', constant_values=spectrogram.min())
         return spectrogram
 
-def load_data(h5_file_path, test_size=0.2):
+
+class SpectrogramCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Block 1
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.pool1 = nn.MaxPool2d(2, 2)
+        
+        # Block 2
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.pool2 = nn.MaxPool2d(2, 2)
+        
+        # Block 3
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
+        self.bn3 = nn.BatchNorm2d(128)
+        self.pool3 = nn.MaxPool2d(2, 2)
+        
+        # Global Pooling
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        
+        # Classifier
+        self.fc1 = nn.Linear(128, 64)
+        self.dropout = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(64, 5)
+
+    def forward(self, x):
+        # Block 1
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = self.pool1(x)
+        
+        # Block 2
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = self.pool2(x)
+        
+        # Block 3
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = self.pool3(x)
+        
+        # Head
+        x = self.gap(x)
+        x = torch.flatten(x, 1)
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+
+# def load_data(h5_file_path, test_size=0.2):
+#     dataset = SpectrogramDataset(h5_file_path)
+#     train_size = int((1 - test_size) * len(dataset))
+#     test_size = len(dataset) - train_size
+#     return random_split(dataset, [train_size, test_size])
+
+def load_data(h5_file_path, train_size=0.7, val_size=0.15, test_size=0.15):
     dataset = SpectrogramDataset(h5_file_path)
-    train_size = int((1 - test_size) * len(dataset))
-    test_size = len(dataset) - train_size
-    return random_split(dataset, [train_size, test_size])
+    total_size = len(dataset)
+    
+    train_size = int(train_size * total_size)
+    val_size = int(val_size * total_size)
+    test_size = total_size - train_size - val_size
+    
+    train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
+        dataset, [train_size, val_size, test_size]
+    )
+    
+    return train_dataset, val_dataset, test_dataset
 
 # Data loading with optimizations
 h5_file_path = './Datasets/FD_0.4.h5'
-train_dataset, test_dataset = load_data(h5_file_path, test_size=0.2)
+train_dataset,val_dataset, test_dataset = load_data(h5_file_path, test_size=0.2)
 
-train_loader = DataLoader(
-    train_dataset,
-    batch_size=64,
-    shuffle=True,
-    num_workers=4,
-    pin_memory=True,
-    persistent_workers=True
-)
+# train_loader = DataLoader(
+#     train_dataset,
+#     batch_size=64,
+#     shuffle=True,
+#     num_workers=4,
+#     pin_memory=True,
+#     persistent_workers=True
+# )
 
-test_loader = DataLoader(
-    test_dataset,
-    batch_size=64,
-    shuffle=False,
-    num_workers=4,
-    pin_memory=True
-)
+# test_loader = DataLoader(
+#     test_dataset,
+#     batch_size=64,
+#     shuffle=False,
+#     num_workers=4,
+#     pin_memory=True
+# )
+
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, pin_memory=True)
+val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=4, pin_memory=True)
+test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=4, pin_memory=True)
 
 # Model setup with proper device placement
-weights = ConvNeXt_Tiny_Weights.DEFAULT
-model = convnext_tiny(weights=weights)
+model = SpectrogramCNN()
 
-# Modify first layer for single channel input
-model.features[0][0] = nn.Conv2d(1, 96, kernel_size=(4, 4), stride=(4, 4))
 
-# Modify classifier
-num_classes = len(train_dataset.dataset.le.classes_)
-model.classifier[2] = nn.Linear(
-    in_features=model.classifier[2].in_features,
-    out_features=num_classes
-)
+# # Modify first layer for single channel input
+# model.features[0][0] = nn.Conv2d(1, 96, kernel_size=(4, 4), stride=(4, 4))
+
+# # Modify classifier
+# num_classes = len(train_dataset.dataset.le.classes_)
+# model.classifier[2] = nn.Linear(
+#     in_features=model.classifier[2].in_features,
+#     out_features=num_classes
+# )
+
 
 # Move entire model to device
 model = model.to(device)
@@ -167,8 +234,21 @@ for epoch in range(num_epochs):
     val_correct = 0
     val_total = 0
     
+    # with torch.no_grad():
+    #     for inputs, labels in test_loader:
+    #         inputs, labels = inputs.to(device), labels.to(device)
+    #         outputs = model(inputs)
+    #         loss = criterion(outputs, labels)
+    #         val_loss += loss.item()
+    #         _, predicted = outputs.max(1)
+    #         val_total += labels.size(0)
+    #         val_correct += predicted.eq(labels).sum().item()
+    
+    # val_loss /= len(test_loader)
+    # val_acc = val_correct / val_total
+    
     with torch.no_grad():
-        for inputs, labels in test_loader:
+        for inputs, labels in val_loader:  # Use val_loader here
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
             loss = criterion(outputs, labels)
@@ -177,7 +257,7 @@ for epoch in range(num_epochs):
             val_total += labels.size(0)
             val_correct += predicted.eq(labels).sum().item()
     
-    val_loss /= len(test_loader)
+    val_loss /= len(val_loader)
     val_acc = val_correct / val_total
     
     if val_acc > best_accuracy:
