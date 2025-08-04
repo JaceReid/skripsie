@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from scipy.io import wavfile
 from tkinter import Tk, Label, Button, filedialog, messagebox, Frame, Toplevel, StringVar, Radiobutton
+from pathlib import Path
+import shutil
 
 class RandomFilePlayer:
     def __init__(self, root):
@@ -83,6 +85,23 @@ class RandomFilePlayer:
             # Write total processed count as second row
             writer.writerow([self.total_processed])
     
+    def move_to_checked(self, filename):
+        """Move the given file to a 'checked' subdirectory"""
+        if not hasattr(self, 'directory'):
+            return
+            
+        checked_dir = os.path.join(self.directory, "checked")
+        os.makedirs(checked_dir, exist_ok=True)
+        
+        source_path = os.path.join(self.directory, filename)
+        dest_path = os.path.join(checked_dir, filename)
+        
+        try:
+            shutil.move(source_path, dest_path)
+            print(f"Moved {filename} to checked directory")
+        except Exception as e:
+            print(f"Error moving file to checked directory: {e}")
+    
     def select_directory(self):
         """Let user select a directory with files to play"""
         directory = filedialog.askdirectory()
@@ -139,6 +158,12 @@ class RandomFilePlayer:
         # Stop any currently playing file
         pygame.mixer.music.stop()
         
+        # Move current file to checked directory before selecting new one
+        if self.current_file and hasattr(self, 'directory'):
+            self.move_to_checked(self.current_file)
+            if self.current_file in self.files:
+                self.files.remove(self.current_file)
+        
         # Select a random file
         self.current_file = random.choice(self.files)
         file_path = os.path.join(self.directory, self.current_file)
@@ -186,8 +211,10 @@ class RandomFilePlayer:
         
         rename_option = StringVar(value="none_frog")
         
-        Radiobutton(popup, text="none_frog", variable=rename_option, value="none_frog").pack(anchor='w', padx=20)
-        Radiobutton(popup, text="other_frog", variable=rename_option, value="other_frog").pack(anchor='w', padx=20)
+        Radiobutton(popup, text="none frog", variable=rename_option, value="none").pack(anchor='w', padx=20)
+        Radiobutton(popup, text="other frog", variable=rename_option, value="other").pack(anchor='w', padx=20)
+        Radiobutton(popup, text="mountain rain frog", variable=rename_option, value="Mountain").pack(anchor='w', padx=20)
+        Radiobutton(popup, text="clicking stream frog", variable=rename_option, value="Clicking").pack(anchor='w', padx=20)
         
         def apply_rename():
             self.flag_and_rename_file(rename_option.get())
@@ -199,30 +226,39 @@ class RandomFilePlayer:
         """Flag the current file and rename it with the given prefix and a unique number"""
         if not self.current_file:
             return
-            
+        
         file_path = os.path.join(self.directory, self.current_file)
         file_ext = os.path.splitext(self.current_file)[1]
-        
-        # Find the next available number
+    
+        # Create checked directory if it doesn't exist
+        checked_dir = os.path.join(self.directory, "checked")
+        os.makedirs(checked_dir, exist_ok=True)
+    
+        # Find the next available number in the checked directory
         i = 1
         while True:
             new_name = f"{prefix}_{i}{file_ext}"
-            new_path = os.path.join(self.directory, new_name)
+            new_path = os.path.join(checked_dir, new_name)
             if not os.path.exists(new_path):
                 break
             i += 1
-        
+    
         try:
-            os.rename(file_path, new_path)
+            # Move and rename the file directly to the checked directory
+            shutil.move(file_path, new_path)
             self.flagged_files.add(self.current_file)
-            self.files.remove(self.current_file)
-            self.files.append(new_name)  # Add the new name to the files list
+            if self.current_file in self.files:
+                self.files.remove(self.current_file)
             self.current_file = new_name  # Update current file reference
             self.save_stats()
             self.stats_label.config(text=f"Flagged: {len(self.flagged_files)} | Processed: {self.total_processed}")
-            messagebox.showinfo("File Flagged", f"File renamed to '{new_name}' and flagged.")
+        
+            messagebox.showinfo("File Flagged", f"File renamed to '{new_name}' and moved to checked directory.")
+        
+            # Play next file automatically
+            self.play_random_file()
         except Exception as e:
-            messagebox.showerror("Error", f"Could not rename file: {e}")
+            messagebox.showerror("Error", f"Could not rename and move file: {e}")
     
     def check_playback(self):
         """Check if playback has finished to enable buttons"""

@@ -76,7 +76,7 @@ def print_frog_report(few_recordings, output_csv=None):
 
 # Example usage
 if __name__ == "__main__":
-    directory_path = "./Datasets/clipped-4s/"  # Change this to your directory
+    directory_path = "./Datasets/Raw-audio/frog_wav/"  # Change this to your directory
     output_csv = "frog_recording_report.csv"  # Output CSV filename
     few_recordings = analyze_frog_recordings(directory_path, min_threshold=10)
     print_frog_report(few_recordings)

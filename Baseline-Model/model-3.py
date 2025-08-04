@@ -86,25 +86,10 @@ def load_data(h5_file_path, train_size=0.7, val_size=0.15, test_size=0.15):
     return train_dataset, val_dataset, test_dataset
 
 # Data loading with optimizations
-h5_file_path = './Datasets/FD_0.4.h5'
+h5_file_path = './Datasets/FD_1.0.h5'
 train_dataset,val_dataset, test_dataset = load_data(h5_file_path, test_size=0.2)
 
-# train_loader = DataLoader(
-#     train_dataset,
-#     batch_size=64,
-#     shuffle=True,
-#     num_workers=4,
-#     pin_memory=True,
-#     persistent_workers=True
-# )
 
-# test_loader = DataLoader(
-#     test_dataset,
-#     batch_size=64,
-#     shuffle=False,
-#     num_workers=4,
-#     pin_memory=True
-# )
 
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, pin_memory=True)
 val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=4, pin_memory=True)
