@@ -1,7 +1,7 @@
 import torch
-from torchvision.models import convnext_tiny, ConvNeXt_Tiny_Weights
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 import numpy as np
 import h5py
 from torch.utils.data import Dataset, DataLoader, random_split
@@ -65,49 +65,89 @@ class SpectrogramDataset(Dataset):
                                 mode='constant', constant_values=spectrogram.min())
         return spectrogram
 
-# def load_data(h5_file_path, test_size=0.2):
-#     dataset = SpectrogramDataset(h5_file_path)
-#     train_size = int((1 - test_size) * len(dataset))
-#     test_size = len(dataset) - train_size
-#     return random_split(dataset, [train_size, test_size])
 
-def load_data(h5_file_path, h5_file_test_path, train_size=0.85, val_size=0.15):
+class SpectrogramCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Block 1
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=11, stride=4, padding=1)
+        self.pool1 = nn.MaxPool2d(3, 2) 
+        
+        # Block 2
+        self.conv2 = nn.Conv2d(64, 256, kernel_size=5, stride=1, padding=1)
+        self.pool2 = nn.MaxPool2d(3, 2)
+        
+        # Block 3
+        self.conv3 = nn.Conv2d(256, 384, kernel_size=3, stride=1, padding=1)
+
+        # Block 4
+        self.conv4 = nn.Conv2d(384, 384, kernel_size=3, stride=1, padding=1)
+
+        # Block 5
+        self.conv5 = nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1)
+        self.pool3 = nn.MaxPool2d(2, 2) 
+        
+        # Global Pooling
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        
+        # Classifier
+        self.fc1 = nn.Linear(256, 128)
+        self.dropout = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(128, 12)
+
+    def forward(self, x):
+        # Block 1
+        x = F.relu(self.conv1(x))
+        x = self.pool1(x)
+        
+        # Block 2
+        x = F.relu(self.conv2(x))
+        x = self.pool2(x)
+        
+        # Block 3
+        x = F.relu(self.conv3(x))
+        
+        # Block 4
+        x = F.relu(self.conv4(x))
+        
+        # Block 5
+        x = F.relu(self.conv5(x))
+        x = self.pool3(x)
+        
+        # Head
+        x = self.gap(x)
+        x = torch.flatten(x, 1)
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+
+
+
+def load_data(h5_file_path, train_size=0.7, val_size=0.15, test_size=0.15):
     dataset = SpectrogramDataset(h5_file_path)
-    test_dataset = SpectrogramDataset(h5_file_test_path)
     total_size = len(dataset)
     
     train_size = int(train_size * total_size)
-    val_size = total_size - train_size
+    val_size = int(val_size * total_size)
+    test_size = total_size - train_size - val_size
     
-    train_dataset, val_dataset = torch.utils.data.random_split(
-        dataset, [train_size, val_size]
+    train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
+        dataset, [train_size, val_size, test_size]
     )
     
     return train_dataset, val_dataset, test_dataset
 
 # Data loading with optimizations
-h5_file_path = './Datasets/FD_1.1.h5'
-h5_file_test_path = './Datasets/FD_Testset_1.0.h5'
-train_dataset,val_dataset, test_dataset = load_data(h5_file_path,h5_file_test_path)
+h5_file_path = './Datasets/FD_1.0.h5'
+train_dataset,val_dataset, test_dataset = load_data(h5_file_path, test_size=0.2)
 
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, pin_memory=True)
 val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=4, pin_memory=True)
 test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=4, pin_memory=True)
 
-
-# Model setup with proper device placement
-weights = ConvNeXt_Tiny_Weights.DEFAULT
-model = convnext_tiny(weights=weights)
-
-# Modify first layer for single channel input
-model.features[0][0] = nn.Conv2d(1, 96, kernel_size=(4, 4), stride=(4, 4))
-
-# Modify classifier
-num_classes = len(train_dataset.dataset.le.classes_)
-model.classifier[2] = nn.Linear(
-    in_features=model.classifier[2].in_features,
-    out_features=num_classes
-)
+# Model setup
+model = SpectrogramCNN()
 
 # Move entire model to device
 model = model.to(device)
@@ -115,7 +155,6 @@ model = model.to(device)
 # Training setup
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.AdamW(model.parameters(), lr=3e-4)
-# scaler = GradScaler()  # For mixed precision
 scaler = torch.amp.GradScaler()
 scheduler = torch.optim.lr_scheduler.OneCycleLR(
     optimizer,
@@ -170,18 +209,7 @@ for epoch in range(num_epochs):
     val_correct = 0
     val_total = 0
     
-    # with torch.no_grad():
-    #     for inputs, labels in test_loader:
-    #         inputs, labels = inputs.to(device), labels.to(device)
-    #         outputs = model(inputs)
-    #         loss = criterion(outputs, labels)
-    #         val_loss += loss.item()
-    #         _, predicted = outputs.max(1)
-    #         val_total += labels.size(0)
-    #         val_correct += predicted.eq(labels).sum().item()
-    
-    # val_loss /= len(test_loader)
-    # val_acc = val_correct / val_total
+
     
     with torch.no_grad():
         for inputs, labels in val_loader:  # Use val_loader here
@@ -214,11 +242,10 @@ for epoch in range(num_epochs):
           f"Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f} | "
           f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
 
-# Evaluation code remains the same...
 # Load best model and evaluate
 print("\nEvaluating best model on test set...")
 model.load_state_dict(torch.load('best_model.pth'))
-model = model.to(device)  # Ensure model is on GPU
+model = model.to(device)
 model.eval()
 
 all_preds = []
@@ -235,7 +262,7 @@ with torch.no_grad():
 test_accuracy = accuracy_score(all_labels, all_preds)
 print(f"\nFinal Test Accuracy: {test_accuracy:.4f}")
 
-# Confusion matrix (optional)
+# Confusion matrix
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt

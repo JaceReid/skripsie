@@ -72,46 +72,50 @@ class SpectrogramCNN(nn.Module):
         # Block 1
         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
         self.bn1 = nn.BatchNorm2d(32)
+        self.dropout1 = nn.Dropout2d(0.5)
         self.pool1 = nn.MaxPool2d(2, 2)
         
         # Block 2
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
         self.bn2 = nn.BatchNorm2d(64)
+        self.dropout2 = nn.Dropout2d(0.5)
         self.pool2 = nn.MaxPool2d(2, 2)
         
         # Block 3
         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
         self.bn3 = nn.BatchNorm2d(128)
+        self.dropout3 = nn.Dropout2d(0.5)
         self.pool3 = nn.MaxPool2d(2, 2)
 
         # Block 4
         self.conv4 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
         self.bn4 = nn.BatchNorm2d(256)
+        self.dropout4 = nn.Dropout2d(0.5)
         self.pool4 = nn.MaxPool2d(2, 2)
         
         # Global Pooling
         self.gap = nn.AdaptiveAvgPool2d(2)
         
         # Classifier
-        self.fc1 = nn.Linear(128, 64)
+        self.fc1 = nn.Linear(1024, 64)
         self.dropout = nn.Dropout(0.5)
         self.fc2 = nn.Linear(64, 12)
 
     def forward(self, x):
         # Block 1
-        x = F.relu(self.bn1(self.conv1(x)))
+        x = self.dropout1(F.relu(self.bn1(self.conv1(x))))
         x = self.pool1(x)
         
         # Block 2
-        x = F.relu(self.bn2(self.conv2(x)))
+        x = self.dropout2(F.relu(self.bn2(self.conv2(x))))
         x = self.pool2(x)
         
         # Block 3
-        x = F.relu(self.bn3(self.conv3(x)))
+        x = self.dropout2(F.relu(self.bn3(self.conv3(x))))
         x = self.pool3(x)
 
         # Block 4
-        x = F.relu(self.bn4(self.conv4(x)))
+        x = self.dropout2(F.relu(self.bn4(self.conv4(x))))
         x = self.pool4(x)
         
         # Head
