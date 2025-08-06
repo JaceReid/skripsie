@@ -1,6 +1,6 @@
 # 🐸 Frog Classifier — Western Cape
 
-![Spectrogram](09_Natal_Tree_Frog.png)
+![Spectrogram](18_Cape_Rain_Frog.png)
 
 ## Project Overview
 
@@ -67,12 +67,8 @@ The classifier will eventually be deployed on a mobile platform for real-time, i
 - `h5py`
 - `joblib`
 - `tqdm`
+- `pytorch`
 
-Install via:
-
-```bash
-pip install -r requirements.txt
-```
 
 ---
 

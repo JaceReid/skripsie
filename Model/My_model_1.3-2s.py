@@ -16,7 +16,7 @@ torch.backends.cudnn.benchmark = True
 print(f"Using device: {device}")
 
 class SpectrogramDataset(Dataset):
-    def __init__(self, h5_file_path, target_height=128, target_width=345, transform=None):
+    def __init__(self, h5_file_path, target_height=128, target_width=172, transform=None):
         self.h5_file_path = h5_file_path
         self.target_height = target_height
         self.target_width = target_width
@@ -139,7 +139,7 @@ def load_data(h5_file_path, train_size=0.7, val_size=0.15, test_size=0.15):
     return train_dataset, val_dataset, test_dataset
 
 # Data loading with optimizations
-h5_file_path = './Datasets/FD_1.0.h5'
+h5_file_path = './Datasets/FD_2.0.h5'
 train_dataset,val_dataset, test_dataset = load_data(h5_file_path, test_size=0.2)
 
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, pin_memory=True)
@@ -166,12 +166,12 @@ scheduler = torch.optim.lr_scheduler.OneCycleLR(
 # Enable cuDNN benchmarking
 torch.backends.cudnn.benchmark = True
 
-early_stopping_patience = 80
+early_stopping_patience = 40
 best_val_loss = float('inf')
 patience_counter = 0
 
 # Training loop
-num_epochs = 200
+num_epochs = 100
 best_accuracy = 0.0
 
 for epoch in range(num_epochs):
@@ -270,8 +270,8 @@ import matplotlib.pyplot as plt
 cm = confusion_matrix(all_labels, all_preds)
 plt.figure(figsize=(10, 8))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-plt.title(f"Confusion Matrix: {__file__}_{h5_file_path.split('/')[-1]}(acc: {test_accuracy})")
+plt.title("Confusion Matrix: " + __file__ +"_"+ h5_file_path.split("/")[-1] +"(acc: " + test_accuracy + ")")
 plt.xlabel('Predicted')
 plt.ylabel('True')
 plt.show()
-plt.savefig(f"Confusion Matrix: {__file__}_{h5_file_path.split('/')[-1]}(acc: {test_accuracy})")
+plt.savefig("FIG_" +__file__ +"_"+ h5_file_path.split("/")[-1] +"(acc: " + test_accuracy + ").png")

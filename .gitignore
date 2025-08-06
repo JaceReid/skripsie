@@ -1,6 +1,8 @@
 # Ignore massive dataset folder
 ./Datasets/
 Datasets/**/*
+Model/conf_tables/*
+Baseline-Model/conf_tables/*
 
 *.wav
 *.h5
