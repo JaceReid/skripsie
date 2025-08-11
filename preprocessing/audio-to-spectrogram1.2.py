@@ -7,8 +7,8 @@ from tqdm import tqdm
 import soundfile as sf
 
 # Configuration
-AUDIO_DIR = "./preprocessing/clipped_4sec/"
-OUTPUT_DIR = "./Datasets/clipped-spec/"
+AUDIO_DIR = "./Datasets/Raw-audio/frog_wav/"
+OUTPUT_DIR = "./Datasets/Spectograms/weale/"
 IMG_SIZE = (1028, 1028)  
 SAMPLE_RATE = 22050    
 N_FFT = 2048           
@@ -52,7 +52,7 @@ def audio_to_mel_spectrogram(file):
     spectrogram_dict[key] = S_dB
 
 for file in tqdm(os.listdir(AUDIO_DIR)):
-    if file.lower().endswith(AUDIO_EXTENSIONS): 
+    if 'weale' in file.lower() and file.lower().endswith(AUDIO_EXTENSIONS):
         # audio_to_mel_spectrogram(file)
         print_grams(file, OUTPUT_DIR)
 

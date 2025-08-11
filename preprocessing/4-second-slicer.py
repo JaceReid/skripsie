@@ -46,8 +46,8 @@ def slice_wav_file(input_file, output_folder, segment_length=4000):
 
 # Example usage
 if __name__ == "__main__":
-    input_dir = "./Datasets/Raw-audio/none-frog-audio/"  # Directory containing WAV files
-    output_folder = "./Datasets/Raw-audio/none-frog-audio/clipped/"  # Output for sliced files
+    input_dir = "./Datasets/Raw-audio/frog_wav"  # Directory containing WAV files
+    output_folder = "./Datasets/clipped_4s_mega/"  # Output for sliced files
     
     # Process all WAV files in input directory
     for filename in os.listdir(input_dir):

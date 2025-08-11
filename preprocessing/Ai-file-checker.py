@@ -26,6 +26,7 @@ class SpectrogramCNN(nn.Module):
         super().__init__()
         # Block 1
         self.conv1 = nn.Conv2d(1, 64, kernel_size=11, stride=4, padding=1)
+        self.bn1 = nn.BatchNorm2d(64)
         self.pool1 = nn.MaxPool2d(3, 2) 
         
         # Block 2
@@ -33,13 +34,13 @@ class SpectrogramCNN(nn.Module):
         self.pool2 = nn.MaxPool2d(3, 2)
         
         # Block 3
-        self.conv3 = nn.Conv2d(256, 384, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(256, 480, kernel_size=3, stride=1, padding=1)
 
         # Block 4
-        self.conv4 = nn.Conv2d(384, 384, kernel_size=3, stride=1, padding=1)
+        self.conv4 = nn.Conv2d(480, 480, kernel_size=3, stride=1, padding=1)
 
         # Block 5
-        self.conv5 = nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1)
+        self.conv5 = nn.Conv2d(480, 256, kernel_size=3, stride=1, padding=1)
         self.pool3 = nn.MaxPool2d(2, 2) 
         
         # Global Pooling
@@ -52,7 +53,7 @@ class SpectrogramCNN(nn.Module):
 
     def forward(self, x):
         # Block 1
-        x = F.relu(self.conv1(x))
+        x = F.relu(self.bn1(self.conv1(x)))
         x = self.pool1(x)
         
         # Block 2
@@ -153,7 +154,7 @@ class RandomFilePlayer:
         pygame.mixer.init()
         
         # Initialize classifier
-        self.classifier = AudioClassifier('best_model.pth', 'label_encoder_classes.npy')
+        self.classifier = AudioClassifier('./Model/saves/BestModel_My_model_1.4.py_FD_3.0.h5(08-08-17H-04M).pth', 'label_encoder_classes.npy')
         
         # Variables
         self.current_file = None
@@ -191,7 +192,7 @@ class RandomFilePlayer:
         self.replay_button = Button(self.button_frame, text="Replay", command=self.replay_file, state="disabled")
         self.replay_button.pack(side="left", padx=10)
         
-        self.next_button = Button(self.button_frame, text="Next File", command=self.play_random_file, state="disabled")
+        self.next_button = Button(self.button_frame, text="Next File", command=self.play_random_file, state="normal")
         self.next_button.pack(side="left", padx=10)
         
         # Spectrogram display
@@ -288,23 +289,15 @@ class RandomFilePlayer:
         if not hasattr(self, 'files') or not self.files:
             return
             
-        # Stop any currently playing file
+        # Force-stop any currently playing file
         pygame.mixer.music.stop()
         
-        # Move current file to checked directory before selecting new one
-        # if self.current_file and hasattr(self, 'directory'):
-        #     self.move_to_checked(self.current_file)
-        #     if self.current_file in self.files:
-        #         self.files.remove(self.current_file)
-        
-        # Select a random file
+        # Rest of the method remains the same...
         self.current_file = random.choice(self.files)
         file_path = os.path.join(self.directory, self.current_file)
-        
-        # Update UI
         self.file_label.config(text=f"Now playing: {self.current_file}")
         
-        # Get prediction from model
+        # Get prediction
         prediction = self.classifier.predict(file_path)
         self.prediction_label.config(text=f"Prediction: {prediction}", fg="blue")
         
@@ -315,13 +308,10 @@ class RandomFilePlayer:
         try:
             pygame.mixer.music.load(file_path)
             pygame.mixer.music.play()
-            
-            # Show spectrogram
             self.show_spectrogram(file_path)
         except Exception as e:
             messagebox.showerror("Error", f"Could not play file: {e}")
-            # Try another file
-            self.play_random_file()
+            self.play_random_file()  # Skip to next file on error
     
     def replay_file(self):
         """Replay the current file"""
@@ -404,12 +394,13 @@ class RandomFilePlayer:
             # Enable buttons when playback is done
             self.flag_button.config(state="normal")
             self.replay_button.config(state="normal")
-            self.next_button.config(state="normal")
         else:
-            # Disable buttons during playback
+            # Disable only Flag and Replay during playback
             self.flag_button.config(state="disabled")
             self.replay_button.config(state="disabled")
-            self.next_button.config(state="disabled")
+        
+        # Next button is always enabled
+        self.next_button.config(state="normal")
         
         # Check again in 500ms
         self.root.after(500, self.check_playback)

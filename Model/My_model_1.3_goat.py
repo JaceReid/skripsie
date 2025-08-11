@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import numpy as np
+import os
 import h5py
 from torch.utils.data import Dataset, DataLoader, random_split
 from sklearn.preprocessing import LabelEncoder
@@ -71,6 +72,7 @@ class SpectrogramCNN(nn.Module):
         super().__init__()
         # Block 1
         self.conv1 = nn.Conv2d(1, 64, kernel_size=11, stride=4, padding=1)
+        self.bn1 = nn.BatchNorm2d(64)
         self.pool1 = nn.MaxPool2d(3, 2) 
         
         # Block 2
@@ -139,7 +141,7 @@ def load_data(h5_file_path, train_size=0.7, val_size=0.15, test_size=0.15):
     return train_dataset, val_dataset, test_dataset
 
 # Data loading with optimizations
-h5_file_path = './Datasets/FD_1.0.h5'
+h5_file_path = './Datasets/FD_2.0.h5'
 train_dataset,val_dataset, test_dataset = load_data(h5_file_path, test_size=0.2)
 
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, pin_memory=True)
@@ -153,6 +155,7 @@ model = SpectrogramCNN()
 model = model.to(device)
 
 # Training setup
+num_epochs = 200
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.AdamW(model.parameters(), lr=3e-4)
 scaler = torch.amp.GradScaler()
@@ -160,7 +163,7 @@ scheduler = torch.optim.lr_scheduler.OneCycleLR(
     optimizer,
     max_lr=3e-4,
     steps_per_epoch=len(train_loader),
-    epochs=100
+    epochs=num_epochs
 )
 
 # Enable cuDNN benchmarking
@@ -170,8 +173,12 @@ early_stopping_patience = 80
 best_val_loss = float('inf')
 patience_counter = 0
 
+# Set path to save best_model
+save_dir = 'Model/saves'
+os.makedirs(save_dir, exist_ok=True)
+model_save_path = os.path.join(save_dir, f"BestModel_{__file__.split('/')[-1]}_{h5_file_path.split('/')[-1]}({time.strftime('%m-%d-%HH-%MM')}).pth")
+
 # Training loop
-num_epochs = 200
 best_accuracy = 0.0
 
 for epoch in range(num_epochs):
@@ -226,11 +233,11 @@ for epoch in range(num_epochs):
     
     if val_acc > best_accuracy:
         best_accuracy = val_acc
-        torch.save(model.state_dict(), 'best_model.pth')
+        torch.save(model.state_dict(), model_save_path)
     if val_loss < best_val_loss:
         best_val_loss = val_loss
         patience_counter = 0
-        torch.save(model.state_dict(), 'best_model.pth')
+        torch.save(model.state_dict(), model_save_path)
     else:
         patience_counter += 1
         if patience_counter >= early_stopping_patience:
@@ -270,8 +277,8 @@ import matplotlib.pyplot as plt
 cm = confusion_matrix(all_labels, all_preds)
 plt.figure(figsize=(10, 8))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-plt.title(f"Confusion Matrix: {__file__}_{h5_file_path.split('/')[-1]}(acc: {test_accuracy})")
+plt.title(f"Confusion Matrix: {__file__.split('/')[-1]}_{h5_file_path.split('/')[-1]}(acc: {test_accuracy})")
 plt.xlabel('Predicted')
 plt.ylabel('True')
 plt.show()
-plt.savefig(f"Confusion Matrix: {__file__}_{h5_file_path.split('/')[-1]}(acc: {test_accuracy})")
+plt.savefig(f"FIG_{__file__.split('/')[-1]}_{h5_file_path.split('/')[-1]}({test_accuracy}).png")
