@@ -4,6 +4,7 @@ import random
 from scipy.io import wavfile
 from scipy.signal import butter, lfilter
 from tqdm import tqdm
+import noisereduce as nr
 
 def butter_bandpass(lowcut, highcut, fs, order=5):
     nyq = 0.5 * fs
@@ -118,6 +119,7 @@ def augment(directory, output_dir, num_new_files, min_calls=1, max_calls=3):
             # Load original file
             sample_rate, data = wavfile.read(filepath)
             output_path = Path(output_dir)
+            data = nr.reduce_noise(y=data, sr=sample_rate)
     
             output_path.mkdir(exist_ok=True)
             
@@ -169,12 +171,12 @@ def augment(directory, output_dir, num_new_files, min_calls=1, max_calls=3):
                 new_audio[mask] += background[mask]
                 
                 # Add some random spikes (fewer spikes when more calls present)
-                max_spikes = max(5, 20 // num_calls)
-                num_spikes = min(max_spikes, len(new_audio)//10)
-                if num_spikes > 0:
-                    spike_indices = np.random.choice(len(new_audio), num_spikes, replace=False)
-                    spike_amplitudes = np.random.uniform(0.1, 0.5, num_spikes) * np.random.choice([-1, 1], num_spikes)
-                    new_audio[spike_indices] += spike_amplitudes
+                # max_spikes = max(5, 20 // num_calls)
+                # num_spikes = min(max_spikes, len(new_audio)//10)
+                # if num_spikes > 0:
+                #     spike_indices = np.random.choice(len(new_audio), num_spikes, replace=False)
+                #     spike_amplitudes = np.random.uniform(0.1, 0.5, num_spikes) * np.random.choice([-1, 1], num_spikes)
+                #     new_audio[spike_indices] += spike_amplitudes
                 
                 # Normalize and save
                 new_audio = np.clip(new_audio, -1, 1)
@@ -186,4 +188,4 @@ def augment(directory, output_dir, num_new_files, min_calls=1, max_calls=3):
             print(f"Error processing {filepath.name}: {str(e)}")
             continue
 
-augment("./Datasets/Raw-audio/aug-test/", "./Datasets/Raw-audio/aug-test/augmented/",num_new_files=500, min_calls=1, max_calls=5)
+augment("./Datasets/Raw-audio/aug-test/Aug-FD_4.0-source/", "./Datasets/Raw-audio/aug-test/FD_4.0_clipped",num_new_files=100, min_calls=1, max_calls=5)

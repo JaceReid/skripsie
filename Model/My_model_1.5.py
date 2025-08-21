@@ -76,26 +76,33 @@ class SpectrogramCNN(nn.Module):
         self.pool1 = nn.MaxPool2d(3, 2) 
         
         # Block 2
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=5, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(64, 256, kernel_size=4, stride=1, padding=1)
         self.pool2 = nn.MaxPool2d(3, 2)
         
         # Block 3
-        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1)
 
         # Block 4
-        self.conv4 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
-
-        # Block 5
-        self.conv5 = nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1)
-        self.pool3 = nn.MaxPool2d(2, 2) 
+        self.conv4 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
         
+        # Block 5
+        self.conv5 = nn.Conv2d(512, 380, kernel_size=2, stride=1, padding=1)
+        self.pool3 = nn.MaxPool2d(3, 2)
+
+        # block 6
+        self.conv6 = nn.Conv2d(380, 300, kernel_size=2, stride=1, padding=1)
+
+        # block 7
+        self.conv7 = nn.Conv2d(300, 256, kernel_size=3, stride=1, padding=1)
+        self.pool4 = nn.MaxPool2d(3, 2)
+
         # Global Pooling
         self.gap = nn.AdaptiveAvgPool2d(1)
         
         # Classifier
-        self.fc1 = nn.Linear(128, 64)
-        self.dropout = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(64, 12)
+        self.fc1 = nn.Linear(256, 128)
+        self.dropout = nn.Dropout(0.3)
+        self.fc2 = nn.Linear(128, 12)
 
     def forward(self, x):
         # Block 1
@@ -115,7 +122,14 @@ class SpectrogramCNN(nn.Module):
         # Block 5
         x = F.relu(self.conv5(x))
         x = self.pool3(x)
-        
+
+        # block 6
+        x = F.relu(self.conv6(x))
+
+        # Block 5
+        x = F.relu(self.conv7(x))
+        x = self.pool4(x)
+
         # Head
         x = self.gap(x)
         x = torch.flatten(x, 1)
@@ -190,7 +204,7 @@ scheduler = torch.optim.lr_scheduler.OneCycleLR(
 # Enable cuDNN benchmarking
 torch.backends.cudnn.benchmark = True
 
-early_stopping_patience = 10
+early_stopping_patience = 50
 best_val_loss = float('inf')
 patience_counter = 0
 

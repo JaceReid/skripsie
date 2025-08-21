@@ -67,7 +67,51 @@ class SpectrogramDataset(Dataset):
         return spectrogram
 
 
-class SpectrogramCNN(nn.Module):
+class FrogCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # Block 1
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=11, stride=4, padding=1)
+        self.pool1 = nn.MaxPool2d(3, 2) 
+        
+        # Block 2
+        self.conv2 = nn.Conv2d(64, 256, kernel_size=5, stride=1, padding=1)
+        self.pool2 = nn.MaxPool2d(3, 2)
+        
+        # Block 5
+        self.conv5 = nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1)
+        self.pool3 = nn.MaxPool2d(2, 2) 
+        
+        # Global Pooling
+        self.gap = nn.AdaptiveAvgPool2d(1)
+        
+        # Classifier
+        self.fc1 = nn.Linear(256, 128)
+        self.dropout = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(128, 12)
+
+    def forward(self, x):
+        # Block 1
+        x = F.relu(self.conv1(x))
+        x = self.pool1(x)
+        
+        # Block 2
+        x = F.relu(self.conv2(x))
+        x = self.pool2(x)
+        
+        # Block 5
+        x = F.relu(self.conv5(x))
+        x = self.pool3(x)
+        
+        # Head
+        x = self.gap(x)
+        x = torch.flatten(x, 1)
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+    
+class SpeciesCNN(nn.Module):
     def __init__(self):
         super().__init__()
         # Block 1
@@ -140,26 +184,30 @@ def load_data(h5_file_path, train_size=0.7, val_size=0.15, test_size=0.15):
     return train_dataset, val_dataset, test_dataset
 
 # Data loading with optimizations
-h5_file_path = './Datasets/FD_1.0.h5'
-train_dataset,val_dataset, test_dataset = load_data(h5_file_path, test_size=0.2)
+h5_file_path_frog = './Datasets/FD_1.0.h5'
+h5_file_path_species = './Datasets/FD_1.0.h5'
+train_dataset,val_dataset, test_dataset = load_data(h5_file_path_frog, test_size=0.2)
 
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, pin_memory=True)
 val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=4, pin_memory=True)
 test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=4, pin_memory=True)
 
 # Model setup
-model = SpectrogramCNN()
+model1 = FrogCNN()
+model2 = FrogCNN()
 
 # Move entire model to device
-model = model.to(device)
+model1 = model1.to(device)
+model2 = model2.to(device)
 
 # Training setup
 num_epochs = 200
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.AdamW(model.parameters(), lr=3e-4)
+optimizer1 = optim.AdamW(model1.parameters(), lr=3e-4)
+optimizer2 = optim.AdamW(model1.parameters(), lr=3e-4)
 scaler = torch.amp.GradScaler()
-scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    optimizer,
+scheduler2 = torch.optim.lr_scheduler.OneCycleLR(
+    optimizer2,
     max_lr=3e-4,
     steps_per_epoch=len(train_loader),
     epochs=num_epochs

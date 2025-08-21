@@ -71,24 +71,23 @@ class SpectrogramDataset(Dataset):
 #     test_size = len(dataset) - train_size
 #     return random_split(dataset, [train_size, test_size])
 
-def load_data(h5_file_path, h5_file_test_path, train_size=0.85, val_size=0.15):
+def load_data(h5_file_path, train_size=0.7, val_size=0.15, test_size=0.15):
     dataset = SpectrogramDataset(h5_file_path)
-    test_dataset = SpectrogramDataset(h5_file_test_path)
     total_size = len(dataset)
     
     train_size = int(train_size * total_size)
-    val_size = total_size - train_size
+    val_size = int(val_size * total_size)
+    test_size = total_size - train_size - val_size
     
-    train_dataset, val_dataset = torch.utils.data.random_split(
-        dataset, [train_size, val_size]
+    train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
+        dataset, [train_size, val_size, test_size]
     )
     
     return train_dataset, val_dataset, test_dataset
 
 # Data loading with optimizations
-h5_file_path = './Datasets/FD_1.1.h5'
-h5_file_test_path = './Datasets/FD_Testset_1.0.h5'
-train_dataset,val_dataset, test_dataset = load_data(h5_file_path,h5_file_test_path)
+h5_file_path = './Datasets/FD_3.2.0.h5'
+train_dataset,val_dataset, test_dataset = load_data(h5_file_path, test_size=0.2)
 
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, pin_memory=True)
 val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=4, pin_memory=True)
@@ -132,7 +131,7 @@ best_val_loss = float('inf')
 patience_counter = 0
 
 # Training loop
-num_epochs = 100
+num_epochs = 50
 best_accuracy = 0.0
 
 for epoch in range(num_epochs):

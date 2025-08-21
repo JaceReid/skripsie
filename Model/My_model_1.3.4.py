@@ -17,7 +17,7 @@ torch.backends.cudnn.benchmark = True
 print(f"Using device: {device}")
 
 class SpectrogramDataset(Dataset):
-    def __init__(self, h5_file_path, target_height=128, target_width=345, transform=None):
+    def __init__(self, h5_file_path, target_height=128, target_width=128, transform=None):
         self.h5_file_path = h5_file_path
         self.target_height = target_height
         self.target_width = target_width
@@ -71,35 +71,35 @@ class SpectrogramCNN(nn.Module):
     def __init__(self):
         super().__init__()
         # Block 1
-        self.conv1 = nn.Conv2d(1, 64, kernel_size=18, stride=4, padding=1)
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=5, stride=2, padding=1)
         self.bn1 = nn.BatchNorm2d(64)
         self.pool1 = nn.MaxPool2d(3, 2) 
         
         # Block 2
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=5, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(64, 256, kernel_size=4, stride=1, padding=1)
         self.pool2 = nn.MaxPool2d(3, 2)
         
         # Block 3
-        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(256, 384, kernel_size=2, stride=1, padding=1)
 
         # Block 4
-        self.conv4 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
+        self.conv4 = nn.Conv2d(384, 384, kernel_size=2, stride=1, padding=1)
 
         # Block 5
-        self.conv5 = nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1)
+        self.conv5 = nn.Conv2d(384, 256, kernel_size=2, stride=1, padding=1)
         self.pool3 = nn.MaxPool2d(2, 2) 
         
         # Global Pooling
         self.gap = nn.AdaptiveAvgPool2d(1)
         
         # Classifier
-        self.fc1 = nn.Linear(128, 64)
+        self.fc1 = nn.Linear(256, 128)
         self.dropout = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(64, 12)
+        self.fc2 = nn.Linear(128, 12)
 
     def forward(self, x):
         # Block 1
-        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.conv1(x))
         x = self.pool1(x)
         
         # Block 2
@@ -124,6 +124,8 @@ class SpectrogramCNN(nn.Module):
         x = self.fc2(x)
         return x
 
+
+
 def load_data(h5_file_path, train_size=0.7, val_size=0.15, test_size=0.15):
     dataset = SpectrogramDataset(h5_file_path)
     total_size = len(dataset)
@@ -139,7 +141,7 @@ def load_data(h5_file_path, train_size=0.7, val_size=0.15, test_size=0.15):
     return train_dataset, val_dataset, test_dataset
 
 # Data loading with optimizations
-h5_file_path = './Datasets/FD_3.2.0.h5'
+h5_file_path = './Datasets/FD_5.0.h5'
 train_dataset,val_dataset, test_dataset = load_data(h5_file_path, test_size=0.2)
 
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, pin_memory=True)
@@ -153,36 +155,14 @@ model = SpectrogramCNN()
 model = model.to(device)
 
 # Training setup
-num_epochs = 200
-
-counts = torch.tensor([
-    390,   # Weale
-    412,   # Peninsula
-    725,   # Eastern
-    770,   # Painted
-    893,   # De
-    977,   # Banded
-    1065,  # Rain
-    1230,  # Clicking
-    1716,  # Southern
-    1863,  # none
-    2872,  # Mountain
-    4881   # other
-], dtype=torch.float32)
-
-# Inverse frequency weights (normalized so mean = 1)
-weights = (1.0 / counts)
-weights = weights / weights.mean()
-
-# class_weights = (counts.sum() / counts) / (counts.numel())
-# criterion = nn.CrossEntropyLoss(weight=weights.to("cuda"))
-criterion = nn.CrossEntropyLoss()
-l2_lambda = 1e-5
-optimizer = optim.AdamW(model.parameters(), lr=2e-4, weight_decay=l2_lambda)
+num_epochs = 120
+criterion_train = nn.CrossEntropyLoss(label_smoothing=0.1)
+criterion_val = nn.CrossEntropyLoss(label_smoothing=0.0)
+optimizer = optim.AdamW(model.parameters(), lr=3e-4)
 scaler = torch.amp.GradScaler()
 scheduler = torch.optim.lr_scheduler.OneCycleLR(
     optimizer,
-    max_lr=2e-4,
+    max_lr=3e-4,
     steps_per_epoch=len(train_loader),
     epochs=num_epochs
 )
@@ -190,7 +170,7 @@ scheduler = torch.optim.lr_scheduler.OneCycleLR(
 # Enable cuDNN benchmarking
 torch.backends.cudnn.benchmark = True
 
-early_stopping_patience = 10
+early_stopping_patience = 15
 best_val_loss = float('inf')
 patience_counter = 0
 
@@ -221,7 +201,7 @@ for epoch in range(num_epochs):
         
         with torch.amp.autocast(device_type='cuda'):
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
+            loss = criterion_train(outputs, labels)
         
         scaler.scale(loss).backward()
         scaler.step(optimizer)
@@ -247,7 +227,7 @@ for epoch in range(num_epochs):
         for inputs, labels in val_loader:  # Use val_loader here
             inputs, labels = inputs.to(device), labels.to(device)
             outputs = model(inputs)
-            loss = criterion(outputs, labels)
+            loss = criterion_val(outputs, labels)
             val_loss += loss.item()
             _, predicted = outputs.max(1)
             val_total += labels.size(0)
@@ -256,11 +236,11 @@ for epoch in range(num_epochs):
     val_loss /= len(val_loader)
     val_acc = val_correct / val_total
     
-    # if val_acc > best_accuracy:
-    #     best_accuracy = val_acc
-    #     torch.save(model.state_dict(), model_save_path)
-    #     patience_counter = 0
-    #     best_acc_epoch = epoch
+    if val_acc > best_accuracy:
+        best_accuracy = val_acc
+        torch.save(model.state_dict(), model_save_path)
+        patience_counter = 0
+        best_acc_epoch = epoch
     if val_loss < best_val_loss:
         best_val_loss = val_loss
         patience_counter = 0

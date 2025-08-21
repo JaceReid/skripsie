@@ -141,7 +141,7 @@ def load_data(h5_file_path, train_size=0.7, val_size=0.15, test_size=0.15):
     return train_dataset, val_dataset, test_dataset
 
 # Data loading with optimizations
-h5_file_path = './Datasets/FD_2.0.h5'
+h5_file_path = './Datasets/FD_3.2.1.h5'
 train_dataset,val_dataset, test_dataset = load_data(h5_file_path, test_size=0.2)
 
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4, pin_memory=True)
@@ -169,7 +169,7 @@ scheduler = torch.optim.lr_scheduler.OneCycleLR(
 # Enable cuDNN benchmarking
 torch.backends.cudnn.benchmark = True
 
-early_stopping_patience = 80
+early_stopping_patience = 5
 best_val_loss = float('inf')
 patience_counter = 0
 
@@ -180,6 +180,11 @@ model_save_path = os.path.join(save_dir, f"BestModel_{__file__.split('/')[-1]}_{
 
 # Training loop
 best_accuracy = 0.0
+best_acc_epoch = 0
+train_losses = []
+val_losses = []
+train_accuracies = []
+val_accuracies = []
 
 for epoch in range(num_epochs):
     model.train()
@@ -209,14 +214,13 @@ for epoch in range(num_epochs):
     
     train_loss = running_loss / len(train_loader)
     train_acc = correct / total
+
     
     # Validation
     model.eval()
     val_loss = 0.0
     val_correct = 0
     val_total = 0
-    
-
     
     with torch.no_grad():
         for inputs, labels in val_loader:  # Use val_loader here
@@ -234,15 +238,23 @@ for epoch in range(num_epochs):
     if val_acc > best_accuracy:
         best_accuracy = val_acc
         torch.save(model.state_dict(), model_save_path)
+        patience_counter = 0
+        best_acc_epoch = epoch
     if val_loss < best_val_loss:
         best_val_loss = val_loss
         patience_counter = 0
         torch.save(model.state_dict(), model_save_path)
+        best_acc_epoch = epoch
     else:
         patience_counter += 1
         if patience_counter >= early_stopping_patience:
             print(f"Early stopping at epoch {epoch+1}")
             break
+    
+    train_losses.append(train_loss)
+    val_losses.append(val_loss)
+    train_accuracies.append(train_acc)
+    val_accuracies.append(val_acc)
     
     epoch_time = time.time() - start_time
     print(f"Epoch {epoch+1}/{num_epochs} | Time: {epoch_time:.2f}s | "
@@ -250,8 +262,9 @@ for epoch in range(num_epochs):
           f"Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}")
 
 # Load best model and evaluate
-print("\nEvaluating best model on test set...")
-model.load_state_dict(torch.load('best_model.pth'))
+print(f"\nEvaluating best model(@epoch: {best_acc_epoch}) on test set...")
+model.load_state_dict(torch.load(model_save_path))
+# model.load_state_dict(torch.load("./Model/saves/BestModel_My_model_1.4.py_FD_2.0.h5(08-06-12H-11M).pth"))
 model = model.to(device)
 model.eval()
 
@@ -273,6 +286,26 @@ print(f"\nFinal Test Accuracy: {test_accuracy:.4f}")
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.metrics import precision_score, recall_score, f1_score, classification_report
+
+# Calculate precision, recall, and F1 (macro/micro averaged)
+precision_macro = precision_score(all_labels, all_preds, average='macro')
+recall_macro = recall_score(all_labels, all_preds, average='macro')
+f1_macro = f1_score(all_labels, all_preds, average='macro')
+
+precision_micro = precision_score(all_labels, all_preds, average='micro')
+recall_micro = recall_score(all_labels, all_preds, average='micro')
+f1_micro = f1_score(all_labels, all_preds, average='micro')
+
+print(f"\nMacro-averaged Metrics:")
+print(f"Precision: {precision_macro:.4f}, Recall: {recall_macro:.4f}, F1: {f1_macro:.4f}")
+
+print(f"\nMicro-averaged Metrics:")
+print(f"Precision: {precision_micro:.4f}, Recall: {recall_micro:.4f}, F1: {f1_micro:.4f}")
+
+# Detailed per-class report
+# print("\nClassification Report:")
+# print(classification_report(all_labels, all_preds, target_names=test_dataset.le.classes_))
 
 cm = confusion_matrix(all_labels, all_preds)
 plt.figure(figsize=(10, 8))
@@ -280,5 +313,26 @@ sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
 plt.title(f"Confusion Matrix: {__file__.split('/')[-1]}_{h5_file_path.split('/')[-1]}(acc: {test_accuracy})")
 plt.xlabel('Predicted')
 plt.ylabel('True')
+# plt.show()
+# plt.savefig(f"FIG_{__file__.split('/')[-1]}_{h5_file_path.split('/')[-1]}({test_accuracy:.4}).png")
+
+plt.figure(figsize=(10, 5))
+plt.plot(train_losses, label='Training Loss')
+plt.plot(val_losses, label='Validation Loss')
+plt.title('Training and Validation Loss Over Epochs')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+plt.grid(True)
+
+plt.figure(figsize=(10, 5))
+plt.plot(train_accuracies, label='Training acc')
+plt.plot(val_accuracies, label='Validation acc')
+plt.title('Training and Validation accuracy Over Epochs')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.grid(True)
+
+plt.tight_layout()
 plt.show()
-plt.savefig(f"FIG_{__file__.split('/')[-1]}_{h5_file_path.split('/')[-1]}({test_accuracy}).png")

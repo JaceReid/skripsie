@@ -36,7 +36,7 @@ def slice_wav_file(input_file, output_folder, segment_length=4000):
         segment = audio[start_time:end_time]
         
         # Skip segments that are too short (less than 1 second)
-        if len(segment) < 1000:
+        if len(segment) < 2000:
             continue
         
         # Save segment
@@ -46,11 +46,11 @@ def slice_wav_file(input_file, output_folder, segment_length=4000):
 
 # Example usage
 if __name__ == "__main__":
-    input_dir = "./Datasets/Raw-audio/frog_wav"  # Directory containing WAV files
-    output_folder = "./Datasets/clipped_4s_mega/"  # Output for sliced files
+    input_dir = "./Datasets/Raw-audio/calls-clipped/"  # Directory containing WAV files
+    output_folder = "./Datasets/Raw-audio/calls-clipped-3/"  # Output for sliced files
     
     # Process all WAV files in input directory
     for filename in os.listdir(input_dir):
         if filename.lower().endswith('.wav'):
             input_file = os.path.join(input_dir, filename)
-            slice_wav_file(input_file, output_folder, segment_length=4000)
+            slice_wav_file(input_file, output_folder, segment_length=3050)
